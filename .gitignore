@@ -45,3 +45,6 @@ exports/
 
 # --- Runtime ---
 mnt/
+
+# --- Test caches ---
+.pytest_cache/

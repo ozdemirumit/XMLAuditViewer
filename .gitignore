@@ -34,6 +34,7 @@ Thumbs.db
 # --- Local audit data (don't commit logs) ---
 *.xml
 !sample/*.xml
+!examples/*.xml
 audit_*
 sample_audit/
 

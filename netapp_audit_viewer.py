@@ -480,7 +480,7 @@ class AuditViewer(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.title(f"NetApp Audit XML Viewer  v{__version__}")
+        self.title(f"XML Audit Viewer  v{__version__}")
         self.geometry("1340x800")
         self.minsize(900, 500)
 

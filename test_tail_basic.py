@@ -30,7 +30,7 @@ for mod in ("tkinter", "tkinter.ttk", "tkinter.filedialog", "tkinter.messagebox"
 # Surgery: parse the file up to the GUI class boundary
 import os
 _here = os.path.dirname(os.path.abspath(__file__))
-_main = os.path.join(_here, '..', 'netapp_audit_viewer.py')
+_main = os.path.join(_here, '..', 'xml_audit_viewer.py')
 src = open(_main).read()
 boundary = src.find('# GUI')
 pre_gui = src[:boundary]

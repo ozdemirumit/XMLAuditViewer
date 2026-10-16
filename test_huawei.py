@@ -1,5 +1,5 @@
 """Tests for Huawei OceanStor CIFS audit XML parsing."""
-import netapp_audit_viewer as v
+import xml_audit_viewer as v
 
 OPEN = (b"<Event xmlns='http://schemas.huawei.com/events/audit-event'><System>"
         b"<Provider Name='Huawei-Security-Auditing' Guid='{x}'/><EventID>4656</EventID>"

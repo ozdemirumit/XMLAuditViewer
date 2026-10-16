@@ -16,10 +16,10 @@ Handles both logon events (4624/4625/4634) and file-operation events
 - Assumes one <Event>...</Event> block per line (NetApp default).
 
 Usage:
-    python netapp_audit_viewer.py
-    python netapp_audit_viewer.py audit_log.xml
-    python netapp_audit_viewer.py audit_log.xml --tail
-    python netapp_audit_viewer.py audit_log.xml --filter-ip 10.0.0.5 --only-failures
+    python xml_audit_viewer.py
+    python xml_audit_viewer.py audit_log.xml
+    python xml_audit_viewer.py audit_log.xml --tail
+    python xml_audit_viewer.py audit_log.xml --filter-ip 10.0.0.5 --only-failures
 """
 
 import argparse
@@ -1469,8 +1469,8 @@ class AuditViewer(tk.Tk):
 
 def _parse_cli_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        prog="netapp_audit_viewer",
-        description="NetApp ONTAP CIFS Security Audit XML viewer (GUI, tail).")
+        prog="xml_audit_viewer",
+        description="CIFS Security Audit XML viewer for NetApp ONTAP and Huawei OceanStor (GUI, tail).")
     p.add_argument("path", nargs="?",
                    help="XML file to load on startup (optional).")
     p.add_argument("--tail", "-t", action="store_true",

@@ -4,7 +4,7 @@ A single-file Python GUI for browsing **NetApp ONTAP** and **Huawei OceanStor (e
 
 Built for storage and infrastructure engineers who need to triage `audit_*.xml` output without spinning up Splunk/ELK.
 
-[![PyPI](https://img.shields.io/pypi/v/netapp-audit-viewer.svg)](https://pypi.org/project/netapp-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/netapp-audit-viewer.svg)](https://pypi.org/project/netapp-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+[![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -29,16 +29,16 @@ Built for storage and infrastructure engineers who need to triage `audit_*.xml` 
 From PyPI:
 
 ```bash
-pip install netapp-audit-viewer
-netapp-audit-viewer
+pip install xml-audit-viewer
+xml-audit-viewer
 ```
 
 Or run directly from source — no install needed since the only dependency is the Python stdlib:
 
 ```bash
-git clone https://github.com/ozdemirumit/NetAppAuditViewer.git
-cd NetAppAuditViewer
-python netapp_audit_viewer.py
+git clone https://github.com/ozdemirumit/XMLAuditViewer.git
+cd XMLAuditViewer
+python xml_audit_viewer.py
 ```
 
 Works on Windows, Linux and macOS.
@@ -48,13 +48,13 @@ Works on Windows, Linux and macOS.
 ## Quick start
 
 ```bash
-netapp-audit-viewer
-netapp-audit-viewer /path/to/audit_log.xml
-netapp-audit-viewer /path/to/audit_log.xml --tail
-netapp-audit-viewer /path/to/audit_log.xml --filter-ip 10.0.0.5 --only-failures --tail
+xml-audit-viewer
+xml-audit-viewer /path/to/audit_log.xml
+xml-audit-viewer /path/to/audit_log.xml --tail
+xml-audit-viewer /path/to/audit_log.xml --filter-ip 10.0.0.5 --only-failures --tail
 ```
 
-(If running from source, substitute `python netapp_audit_viewer.py` for `netapp-audit-viewer`.)
+(If running from source, substitute `python xml_audit_viewer.py` for `xml-audit-viewer`.)
 
 ### CLI options
 
@@ -144,14 +144,14 @@ What the script does:
 
 ```cmd
 pip install pyinstaller
-pyinstaller --noconfirm --onefile --windowed --name "XMLAuditViewer" --clean netapp_audit_viewer.py
+pyinstaller --noconfirm --onefile --windowed --name "XMLAuditViewer" --clean xml_audit_viewer.py
 ```
 
-**Notes:**
+:**
 - A `--onefile` exe unpacks itself to a temporary folder on every start, so launch takes a second or two longer. Corporate antivirus sometimes flags PyInstaller's onefile bootloader — whitelist the exe if that happens. If it keeps being quarantined, build without `--onefile` (folder build in `dist\XMLAuditViewer\`, more AV-friendly, but you must ship the whole folder).
 - The exe must be built on Windows; PyInstaller cannot cross-compile from Linux/macOS.
 - Add `--icon=audit.ico` if you want a custom icon.
-- For a tiny portable alternative when target machines have Python: `python -m zipapp . -m "netapp_audit_viewer:main" -o XMLAuditViewer.pyz` produces a ~40 KB single-file zipapp.
+- For a tiny portable alternative when target machines have Python: `python -m zipapp . -m "xml_audit_viewer:main" -o XMLAuditViewer.pyz` produces a ~40 KB single-file zipapp.
 
 ---
 

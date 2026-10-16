@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `%%NNNN` AccessList decoding; Shares / Top objects / File access users / Access types statistics tabs.
 
 ### Changed
+- **Renamed** the project to *XML Audit Viewer*: module `xml_audit_viewer.py`, PyPI package `xml-audit-viewer` (CLI command `xml-audit-viewer`), exe `XMLAuditViewer.exe`, repo `XMLAuditViewer`. The old `netapp_audit_viewer` / `netapp-audit-viewer` names are removed.
 - Split the single "Open & Tail" button into **Open File** (one-time load) and **Start Tail/Stop Tail** (follow; resumes after the loaded content). Reload keeps tail state.
 - Statistics, context menu, detail pane and CSV now use unified User/IP fields, so file-operation events are included.
 

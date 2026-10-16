@@ -34,7 +34,7 @@ python -m PyInstaller ^
     --windowed ^
     --name "XMLAuditViewer" ^
     --clean ^
-    netapp_audit_viewer.py
+    xml_audit_viewer.py
 
 if errorlevel 1 (
     echo.

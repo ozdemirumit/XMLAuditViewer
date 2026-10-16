@@ -1,6 +1,6 @@
 @echo off
 REM ===========================================================
-REM NetApp Audit Viewer - PyInstaller build script
+REM XML Audit Viewer - PyInstaller build script
 REM ===========================================================
 
 setlocal
@@ -32,7 +32,7 @@ python -m PyInstaller ^
     --noconfirm ^
     --onefile ^
     --windowed ^
-    --name "NetAppAuditViewer" ^
+    --name "XMLAuditViewer" ^
     --clean ^
     netapp_audit_viewer.py
 
@@ -45,8 +45,8 @@ if errorlevel 1 (
 echo.
 echo ===========================================================
 echo Build complete.
-echo Executable: dist\NetAppAuditViewer.exe
-echo Single file - copy dist\NetAppAuditViewer.exe anywhere to run it.
+echo Executable: dist\XMLAuditViewer.exe
+echo Single file - copy dist\XMLAuditViewer.exe anywhere to run it.
 echo ===========================================================
 
 endlocal

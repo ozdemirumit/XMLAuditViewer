@@ -1,4 +1,4 @@
-# NetApp Audit XML Viewer
+# XML Audit Viewer
 
 A single-file Python GUI for browsing **NetApp ONTAP** and **Huawei OceanStor (e.g. 5510) CIFS Security Audit XML** logs. Opens large files instantly, follows them like `tail -f` as new events are written, and lets you slice the data by user, IP, time range, and event type — with no external dependencies beyond Python's standard library.
 
@@ -123,7 +123,7 @@ A single host hammering one username with `No such user account` failures over m
 
 ## Build a Windows `.exe`
 
-Ship the viewer to colleagues who don't have Python installed. The build produces a **single, self-contained `NetAppAuditViewer.exe`** — the Python runtime, Tcl/Tk and every required DLL are packed inside it, so **no external DLLs, no Python install and no extra files** are needed on the target machine. Copy the one file anywhere and run it.
+Ship the viewer to colleagues who don't have Python installed. The build produces a **single, self-contained `XMLAuditViewer.exe`** — the Python runtime, Tcl/Tk and every required DLL are packed inside it, so **no external DLLs, no Python install and no extra files** are needed on the target machine. Copy the one file anywhere and run it.
 
 ### Using `build.bat` (recommended)
 
@@ -131,7 +131,7 @@ Ship the viewer to colleagues who don't have Python installed. The build produce
 
 1. Open the repo folder.
 2. Double-click `build.bat` (or run it from `cmd`).
-3. Take the result from `dist\NetAppAuditViewer.exe`.
+3. Take the result from `dist\XMLAuditViewer.exe`.
 
 What the script does:
 
@@ -144,14 +144,14 @@ What the script does:
 
 ```cmd
 pip install pyinstaller
-pyinstaller --noconfirm --onefile --windowed --name "NetAppAuditViewer" --clean netapp_audit_viewer.py
+pyinstaller --noconfirm --onefile --windowed --name "XMLAuditViewer" --clean netapp_audit_viewer.py
 ```
 
 **Notes:**
-- A `--onefile` exe unpacks itself to a temporary folder on every start, so launch takes a second or two longer. Corporate antivirus sometimes flags PyInstaller's onefile bootloader — whitelist the exe if that happens. If it keeps being quarantined, build without `--onefile` (folder build in `dist\NetAppAuditViewer\`, more AV-friendly, but you must ship the whole folder).
+- A `--onefile` exe unpacks itself to a temporary folder on every start, so launch takes a second or two longer. Corporate antivirus sometimes flags PyInstaller's onefile bootloader — whitelist the exe if that happens. If it keeps being quarantined, build without `--onefile` (folder build in `dist\XMLAuditViewer\`, more AV-friendly, but you must ship the whole folder).
 - The exe must be built on Windows; PyInstaller cannot cross-compile from Linux/macOS.
 - Add `--icon=audit.ico` if you want a custom icon.
-- For a tiny portable alternative when target machines have Python: `python -m zipapp . -m "netapp_audit_viewer:main" -o NetAppAuditViewer.pyz` produces a ~40 KB single-file zipapp.
+- For a tiny portable alternative when target machines have Python: `python -m zipapp . -m "netapp_audit_viewer:main" -o XMLAuditViewer.pyz` produces a ~40 KB single-file zipapp.
 
 ---
 

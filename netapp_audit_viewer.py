@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NetApp Audit XML Viewer
+XML Audit Viewer
 ========================
 
 A GUI viewer for NetApp ONTAP and Huawei OceanStor (e.g. 5510) CIFS Security
@@ -679,7 +679,7 @@ class AuditViewer(tk.Tk):
 
     def _browse(self):
         p = filedialog.askopenfilename(
-            title="Select NetApp Audit XML file",
+            title="Select audit XML file",
             filetypes=[("XML files", "*.xml"), ("All files", "*.*")])
         if p:
             self.path_var.set(p)

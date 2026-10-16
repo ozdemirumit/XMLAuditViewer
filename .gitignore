@@ -20,7 +20,7 @@ test_env/
 build/
 dist/
 *.spec
-!NetAppAuditViewer.spec
+!XMLAuditViewer.spec
 
 # --- IDEs / editors ---
 .vscode/

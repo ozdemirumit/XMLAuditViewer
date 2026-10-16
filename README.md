@@ -7,7 +7,7 @@ Open multi-hundred-MB audit files in seconds, follow them like `tail -f` while t
 [![Download](https://img.shields.io/github/v/release/ozdemirumit/XMLAuditViewer?label=download&color=blue)](https://github.com/ozdemirumit/XMLAuditViewer/releases/latest) [![Downloads](https://img.shields.io/github/downloads/ozdemirumit/XMLAuditViewer/total?label=downloads)](https://github.com/ozdemirumit/XMLAuditViewer/releases) [![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg?label=pypi&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg?label=python&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 
-## ⬇️ Download
+## Download
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ Want to try it first? Open the synthetic logs in [`examples/`](examples/) — no
 
 ## Table of contents
 
-- [Download](#️-download)
+- [Download](#download)
 - [What it is for](#what-it-is-for)
 - [Supported storage systems](#supported-storage-systems)
 - [Features](#features)

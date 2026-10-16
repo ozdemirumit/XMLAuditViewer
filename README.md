@@ -108,7 +108,7 @@ python xml_audit_viewer.py
 
 ### As a Windows executable
 
-Build it yourself with `build.bat` (see [Build a Windows `.exe`](#build-a-windows-exe)) and copy the single `XMLAuditViewer.exe` to any Windows machine — no Python needed there.
+Download the ready-made single-file `XMLAuditViewer.exe` from the [Releases page](https://github.com/ozdemirumit/XMLAuditViewer/releases) — no Python needed. Or build it yourself with `build.bat` (see [Build a Windows `.exe`](#build-a-windows-exe)) and copy the single `XMLAuditViewer.exe` to any Windows machine — no Python needed there.
 
 > **Linux note:** `tkinter` is a separate package on many distributions, e.g. `sudo apt install python3-tk` (Debian/Ubuntu) or `sudo dnf install python3-tkinter` (Fedora).
 

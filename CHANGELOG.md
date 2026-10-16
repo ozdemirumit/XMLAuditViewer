@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.1] - 2026-10-17
 
+### Added
+- GitHub Actions workflow: pushing a `v*` tag builds `XMLAuditViewer.exe` and publishes it to GitHub Releases.
+
 ### Changed
 - Documentation-only release: full README (user guide, event reference, troubleshooting) now shown on PyPI.
 

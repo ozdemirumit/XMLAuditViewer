@@ -4,12 +4,29 @@
 
 Open multi-hundred-MB audit files in seconds, follow them like `tail -f` while the storage array writes new events, filter by user / IP / time / event type, drill into suspicious activity with one right-click, and export the result to CSV for your SOC or auditors — all without Splunk, ELK or any external dependency.
 
-[![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg?label=pypi&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg?label=python&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+[![Download](https://img.shields.io/github/v/release/ozdemirumit/XMLAuditViewer?label=download&color=blue)](https://github.com/ozdemirumit/XMLAuditViewer/releases/latest) [![Downloads](https://img.shields.io/github/downloads/ozdemirumit/XMLAuditViewer/total?label=downloads)](https://github.com/ozdemirumit/XMLAuditViewer/releases) [![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg?label=pypi&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg?label=python&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+
+
+## ⬇️ Download
+
+| | |
+|---|---|
+| **Windows (no Python needed)** | **[Download `XMLAuditViewer.exe`](https://github.com/ozdemirumit/XMLAuditViewer/releases/latest/download/XMLAuditViewer.exe)** — a single self-contained file, no installer and no external DLLs |
+| All releases and release notes | [github.com/ozdemirumit/XMLAuditViewer/releases](https://github.com/ozdemirumit/XMLAuditViewer/releases) |
+| Python package (any OS) | `pip install xml-audit-viewer` — [PyPI](https://pypi.org/project/xml-audit-viewer/) |
+| Source code | `git clone https://github.com/ozdemirumit/XMLAuditViewer.git` |
+
+**Run it in three steps:** download the `.exe` → double-click it → click **Browse…**, pick your audit `.xml` file, then **Open File** (or **Start Tail** to follow it live).
+
+> The exe is unsigned, so Windows SmartScreen may show *"Windows protected your PC"*. Click **More info → Run anyway**. To verify your download, compare the SHA-256 shown on the release page with `certutil -hashfile XMLAuditViewer.exe SHA256`.
+
+Want to try it first? Open the synthetic logs in [`examples/`](examples/) — no real data needed.
 
 ---
 
 ## Table of contents
 
+- [Download](#️-download)
 - [What it is for](#what-it-is-for)
 - [Supported storage systems](#supported-storage-systems)
 - [Features](#features)
@@ -108,7 +125,7 @@ python xml_audit_viewer.py
 
 ### As a Windows executable
 
-Download the ready-made single-file `XMLAuditViewer.exe` from the [Releases page](https://github.com/ozdemirumit/XMLAuditViewer/releases) — no Python needed. Or build it yourself with `build.bat` (see [Build a Windows `.exe`](#build-a-windows-exe)) and copy the single `XMLAuditViewer.exe` to any Windows machine — no Python needed there.
+Download **[`XMLAuditViewer.exe`](https://github.com/ozdemirumit/XMLAuditViewer/releases/latest/download/XMLAuditViewer.exe)** from the [Releases page](https://github.com/ozdemirumit/XMLAuditViewer/releases/latest) and double-click it — no Python, no installer, no external DLLs. Prefer to build it yourself? See [Build a Windows `.exe`](#build-a-windows-exe) (`build.bat` does it in one step).
 
 > **Linux note:** `tkinter` is a separate package on many distributions, e.g. `sudo apt install python3-tk` (Debian/Ubuntu) or `sudo dnf install python3-tkinter` (Fedora).
 
@@ -399,6 +416,7 @@ pyinstaller --noconfirm --onefile --windowed --name "XMLAuditViewer" --clean xml
 | Wrong vendor label | Switch **Vendor** from *Auto* to the right vendor. |
 | New events don't appear | Click **Start Tail** (Open File does not follow). Check *Filter as you type* / active filters and *Auto-scroll*. |
 | Time filter returns nothing | Use `YYYY-MM-DD HH:MM` and remember times are UTC as stored in the log. |
+| Windows says *"Windows protected your PC"* | The exe is unsigned. Click **More info → Run anyway**, or build it yourself with `build.bat`. |
 | Antivirus blocks the exe | See the notes in [Build a Windows `.exe`](#build-a-windows-exe). |
 
 ---

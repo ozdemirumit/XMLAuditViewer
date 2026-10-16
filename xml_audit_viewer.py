@@ -36,7 +36,7 @@ from collections import Counter
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
-__version__ = "1.1.0"   # keep in sync with pyproject.toml
+__version__ = "1.1.1"   # keep in sync with pyproject.toml
 
 # ---------------------------------------------------------------------------
 # Configuration constants

@@ -30,7 +30,7 @@ jobs:
         run: python -m pip install --upgrade pip pyinstaller pytest
 
       - name: Run parser tests
-        run: python -m pytest test_huawei.py -q
+        run: python -m pytest test_parser.py -q
 
       - name: Build single-file exe
         run: >

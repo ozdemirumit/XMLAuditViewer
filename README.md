@@ -116,7 +116,7 @@ Download the ready-made single-file `XMLAuditViewer.exe` from the [Releases page
 
 ## Quick start
 
-> **Try it without your own logs:** the repo ships two synthetic sample files with fake users and documentation-range IPs — [`examples/sample_netapp_audit.xml`](examples/sample_netapp_audit.xml) and [`examples/sample_huawei_audit.xml`](examples/sample_huawei_audit.xml). The NetApp one contains a password-spraying pattern (60 failed logons from `203.0.113.77`) to find with the *Statistics* window.
+> **Try it without your own logs:** the repo ships two synthetic sample files with fake users and documentation-range IPs — [`examples/sample_audit_log_1.xml`](examples/sample_audit_log_1.xml) (NetApp ONTAP format) and [`examples/sample_audit_log_2.xml`](examples/sample_audit_log_2.xml) (Huawei OceanStor format). The first one contains a password-spraying pattern (60 failed logons from `203.0.113.77`) to find with the *Statistics* window.
 
 ```bash
 xml-audit-viewer                                       # start empty, pick a file in the GUI
@@ -411,7 +411,7 @@ cd XMLAuditViewer
 python xml_audit_viewer.py            # run
 python test_tail_basic.py             # tail reader scenarios (standalone script)
 python test_tail_hard.py              # stress / rotation scenarios (standalone script)
-python -m pytest test_huawei.py       # parser tests (needs: pip install pytest)
+python -m pytest test_parser.py       # parser tests (needs: pip install pytest)
 ```
 
 Everything lives in `xml_audit_viewer.py`: the parser (`parse_event`), the tail thread (`TailReader`) and the GUI (`AuditViewer`). Version history is in [CHANGELOG.md](CHANGELOG.md).

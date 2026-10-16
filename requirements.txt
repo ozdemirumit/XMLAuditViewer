@@ -1,7 +1,8 @@
-# XML Audit Viewer has no runtime dependencies.
+# XML Audit Viewer has no runtime dependencies (standard library only).
 # Everything used (tkinter, xml.etree, threading, queue, csv, argparse)
 # is part of the Python standard library.
 #
-# Optional dependencies for development:
+# Optional dependencies for development and testing:
 #
 # pyinstaller>=6.19  # for building a Windows .exe
+# pytest             # for running test_parser.py

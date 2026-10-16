@@ -4,7 +4,7 @@
 
 Open multi-hundred-MB audit files in seconds, follow them like `tail -f` while the storage array writes new events, filter by user / IP / time / event type, drill into suspicious activity with one right-click, and export the result to CSV for your SOC or auditors — all without Splunk, ELK or any external dependency.
 
-[![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+[![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg?label=pypi&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg?label=python&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 

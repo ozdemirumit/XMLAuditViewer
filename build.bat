@@ -49,4 +49,5 @@ echo Executable: dist\XMLAuditViewer.exe
 echo Single file - copy dist\XMLAuditViewer.exe anywhere to run it.
 echo ===========================================================
 
+pause
 endlocal

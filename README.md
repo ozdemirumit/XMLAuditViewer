@@ -116,6 +116,8 @@ Download the ready-made single-file `XMLAuditViewer.exe` from the [Releases page
 
 ## Quick start
 
+> **Try it without your own logs:** the repo ships two synthetic sample files with fake users and documentation-range IPs — [`examples/sample_netapp_audit.xml`](examples/sample_netapp_audit.xml) and [`examples/sample_huawei_audit.xml`](examples/sample_huawei_audit.xml). The NetApp one contains a password-spraying pattern (60 failed logons from `203.0.113.77`) to find with the *Statistics* window.
+
 ```bash
 xml-audit-viewer                                       # start empty, pick a file in the GUI
 xml-audit-viewer /path/to/audit.xml                    # pre-fill the file path

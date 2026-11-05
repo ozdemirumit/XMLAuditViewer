@@ -45,7 +45,7 @@ jobs:
           Compress-Archive -Path package/* -DestinationPath dist/XMLAuditViewer-windows.zip -Force
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: XMLAuditViewer-windows
           path: |

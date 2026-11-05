@@ -75,6 +75,8 @@ The vendor is **detected automatically** from the file (see [Vendor selector](#t
 ## Features
 
 **Loading and following**
+- **Many files, one tab each** — open several audit files at once (multi-select in *Browse…*, several command-line paths, or *Open File* repeatedly). Each file gets its own tab titled `name (filtered/total)`, with a dot while it is being tailed. Opening a file that is already open just switches to its tab.
+- **One set of filters for every tab** — type a user, IP, time range or search once and **all tabs** are filtered together, so you can compare e.g. the same user across several arrays or days at a glance. Statistics and CSV export can cover the current tab or **all tabs**.
 - **Open File** — load a file once, instantly, with no following.
 - **Start Tail / Stop Tail** — follow the file like `tail -f`; new events stream into the table. If you opened the file first, tailing continues exactly where the load ended (no duplicates, no re-reading).
 - **Folder (rotated)…** — load a whole folder of audit files (`audit.xml`, `audit.xml-1`, `audit.xml.0` …) in chronological order, then tail the newest one.
@@ -139,6 +141,7 @@ Download **[`XMLAuditViewer.exe`](https://github.com/ozdemirumit/XMLAuditViewer/
 xml-audit-viewer                                       # start empty, pick a file in the GUI
 xml-audit-viewer /path/to/audit.xml                    # pre-fill the file path
 xml-audit-viewer /path/to/audit.xml --tail             # load and follow immediately
+xml-audit-viewer array1.xml array2.xml array3.xml       # several files, one tab each
 xml-audit-viewer audit.xml --filter-ip 10.0.0.5 --only-failures --tail
 xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 ```
@@ -149,8 +152,8 @@ xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 
 | Flag | Description |
 |---|---|
-| `path` (positional) | XML file to use on startup. On its own it only fills in the file box; add `--tail` to load it. |
-| `--tail`, `-t` | Load the file and start following it immediately. |
+| `path` (positional, one or more) | XML file(s) to open on startup, **one tab each**. |
+| `--tail`, `-t` | Also start following every file given on the command line. |
 | `--filter-ip IP` | Pre-fill the *IP contains* filter. |
 | `--filter-user USER` | Pre-fill the *User contains* filter. |
 | `--filter-eventid ID` | Pre-select an Event ID, e.g. `4625`. |
@@ -165,16 +168,21 @@ xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 
 | Control | What it does |
 |---|---|
-| **File** box + **Browse…** | Choose the audit XML file. |
-| **Open File** | Load the whole file once. Stops any running tail. |
-| **Start Tail / Stop Tail** | Follow the file for new events. If the file was opened with *Open File*, continues from where it ended; otherwise reads the file from the start and then follows it. |
-| **Folder (rotated)…** | Pick a folder; loads every `*.xml`, `*.xml-N`, `*.xml.N` file oldest → newest, then tails the newest. |
+| **File** box | Shows the path of the active tab; type or paste a path and press *Open File* to open it. |
+| **Browse…** | Pick **one or more** audit XML files; each opens in its own tab. |
+| **Open File** | Open the file named in the File box in a new tab (or reload it if already open). Does not follow it. |
+| **Start Tail / Stop Tail** | Follow the **active tab's** file for new events. If the file was opened with *Open File*, continues from where it ended; otherwise reads the file from the start and then follows it. Each tab tails independently. |
+| **Folder (rotated)…** | Pick a folder; loads every `*.xml`, `*.xml-N`, `*.xml.N` file oldest → newest into **one tab**, then tails the newest. |
+| **Close Tab** | Close the active tab and stop its tail (also: middle-click a tab, or right-click a row → *Close this tab*). |
 | **Vendor** | `Auto` (default) uses the vendor detected from each event and shows it in the status bar; `NetApp` / `Huawei` force the label. Parsing is identical for both — this only sets the label shown in the status bar, detail pane, CSV and search. |
-| **Reload** | Re-read the file from scratch; tailing stays on if it was on. |
-| **Statistics…** | Open the statistics window for the currently filtered events. |
-| **Export CSV…** | Save the currently filtered events as CSV. |
+| **Reload** | Re-read the active tab's file from scratch; tailing stays on if it was on. |
+| **Statistics…** | Statistics for the filtered events of the active tab. |
+| **Export CSV…** | Save the filtered events of the active tab as CSV. |
+| **All tabs** (checkbox) | Make *Statistics…* and *Export CSV…* cover the filtered events of **all** tabs instead of only the active one. |
 
 ### Filters
+
+The filters are shared: they apply to **every open tab** at once. Each tab's title shows how many events match (`filtered/total`); only the visible tab is redrawn, the others update when you switch to them.
 
 | Filter | Behaviour |
 |---|---|
@@ -206,11 +214,11 @@ Right-click a row to:
 - filter by that **IP**, **user**, **Event ID**, **domain**, or **failure reason**;
 - run **"This IP + this user (failure analysis)"**, **"Only failures from this IP"** or **"Only failures from this user"**;
 - copy the **IP**, the **user**, or the **full event details** to the clipboard;
-- **reset all filters**.
+- **reset all filters**, or **close this tab**.
 
 ### Statistics window
 
-Computed over the currently filtered events. The header shows totals, success/failure counts, unique IPs and users, time range and per-vendor counts.
+Computed over the currently filtered events of the active tab — or of all tabs when **All tabs** is ticked (the window title says which). The header shows totals, success/failure counts, unique IPs and users, time range and per-vendor counts.
 
 | Tab | Shows |
 |---|---|
@@ -228,9 +236,9 @@ Computed over the currently filtered events. The header shows totals, success/fa
 
 ### CSV export
 
-Exports the **filtered** events with these columns (`;`-delimited, UTF-8 with BOM):
+Exports the **filtered** events (active tab, or all tabs when **All tabs** is ticked) with these columns (`;`-delimited, UTF-8 with BOM):
 
-`TimeDisplay, Vendor, EventID, EventName, Source, Result, Computer, IP, User, Domain, Share, ObjectName, ObjectType, Action, AccessMask, IpAddress, IpPort, TargetUserName, TargetDomainName, TargetUserSid, Status, FailureReason, FailureReasonString, AuthenticationPackageName, LogonType`
+`TimeDisplay, Vendor, EventID, EventName, Source, Result, Computer, IP, User, Domain, Share, ObjectName, ObjectType, Action, AccessMask, IpAddress, IpPort, TargetUserName, TargetDomainName, TargetUserSid, Status, FailureReason, FailureReasonString, AuthenticationPackageName, LogonType, SourceFile`
 
 ---
 
@@ -399,7 +407,7 @@ pyinstaller --noconfirm --onefile --windowed --name "XMLAuditViewer" --clean xml
 ## Limitations
 
 - The table shows at most **10,000** rows (change `MAX_DISPLAY_ROWS` at the top of the file). All events stay in memory; the cap only affects rendering. Statistics and CSV cover **all** filtered events, not just the visible ones.
-- Memory use is roughly **1.5 KB per event** — 1 M events ≈ 1.5 GB RAM. For larger datasets filter first or split the file.
+- Memory use is roughly **1.5 KB per event**, summed over all open tabs — 1 M events ≈ 1.5 GB RAM. For larger datasets filter first or split the file.
 - Times are shown exactly as stored in `TimeCreated/@SystemTime` (UTC); there is **no time-zone conversion**.
 - Huawei and NetApp share one parser. Vendor-specific fields that the viewer does not know are shown in the detail pane and searchable, but have no dedicated column.
 - Only the XML audit format is supported (not EVTX, syslog or JSON).
@@ -430,6 +438,7 @@ python xml_audit_viewer.py            # run
 python test_tail_basic.py             # tail reader scenarios (standalone script)
 python test_tail_hard.py              # stress / rotation scenarios (standalone script)
 python -m pytest test_parser.py       # parser tests (needs: pip install pytest)
+xvfb-run python -m pytest test_gui.py # GUI tests; skipped without tkinter/display (Linux: needs xvfb)
 ```
 
 Everything lives in `xml_audit_viewer.py`: the parser (`parse_event`), the tail thread (`TailReader`) and the GUI (`AuditViewer`). Version history is in [CHANGELOG.md](CHANGELOG.md).

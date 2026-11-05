@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-05
+
+### Added
+- **Multiple files in tabs:** every opened file gets its own tab; *Browse...* accepts several files, the command line accepts several paths, and a file that is already open is reused. The filters apply to **all** tabs at once (tab titles show `filtered/total` and a dot while tailing).
+- *Close Tab* button, middle-click on a tab and right-click -> *Close this tab*.
+- *All tabs* option for *Statistics...* and *Export CSV...*; CSV has a new `SourceFile` column.
+- Tail is controlled per tab; *Folder (rotated)...* opens its own tab.
+- GUI smoke tests (`test_gui.py`, skipped when there is no display).
+
+### Fixed
+- The *Statistics* window failed to open on some tkinter versions (`Invalid column index`).
+- *Statistics* now reports "no events match" instead of silently showing everything when the filters match nothing.
+
 ## [1.1.1] - 2026-10-17
 
 ### Added

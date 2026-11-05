@@ -36,7 +36,7 @@ from collections import Counter
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
-__version__ = "1.1.1"   # keep in sync with pyproject.toml
+__version__ = "1.2.0"   # keep in sync with pyproject.toml
 
 # ---------------------------------------------------------------------------
 # Configuration constants
@@ -278,8 +278,9 @@ class TailReader(threading.Thread):
     def __init__(self, path: str, out_queue: queue.Queue,
                  stop_event: threading.Event, poll: float = POLL_INTERVAL,
                  start_at_end: bool = False, follow: bool = True,
-                 start_pos: int | None = None):
+                 start_pos: int | None = None, tag=None):
         super().__init__(daemon=True)
+        self.tag = tag                  # identifies the owning tab (GUI)
         self.path = path
         self.q = out_queue
         self.stop_event = stop_event
@@ -291,7 +292,10 @@ class TailReader(threading.Thread):
         self._pos = 0
 
     def _emit(self, kind: str, payload):
-        self.q.put((kind, payload))
+        if self.tag is None:
+            self.q.put((kind, payload))
+        else:
+            self.q.put((kind, payload, self.tag))
 
     def _read_chunk(self, start: int) -> tuple[bytes, int]:
         with open(self.path, "rb") as f:
@@ -463,6 +467,27 @@ DETAIL_ORDER = [
 ]
 
 
+class FileTab:
+    """State of one opened audit file (one notebook tab)."""
+
+    def __init__(self, tid: int, path: str, title: str, frame, tree):
+        self.tid = tid
+        self.path = path
+        self.title = title
+        self.folder = ""               # set for "Folder (rotated)" tabs
+        self.frame = frame
+        self.tree = tree
+        self.events: list[dict] = []
+        self.filtered_indices: list[int] = []
+        self.stop: threading.Event | None = None
+        self.tailing = False
+        self.loaded_path = ""          # file loaded by "Open File"
+        self.loaded_pos: int | None = None
+        self.gen = 0                   # bumped on reset; drops stale messages
+        self.dirty = False             # tree needs re-rendering
+        self.sort_reverse: dict[str, bool] = {}
+
+
 class AuditViewer(tk.Tk):
 
     COLUMNS = [
@@ -484,18 +509,13 @@ class AuditViewer(tk.Tk):
         self.geometry("1340x800")
         self.minsize(900, 500)
 
-        # Veri
-        self.events: list[dict] = []
-        self.filtered_indices: list[int] = []
-        self.tail_thread: TailReader | None = None
-        self.tail_stop: threading.Event | None = None
+        # One FileTab per opened file; all share the filters below.
+        self.tabs: dict[int, FileTab] = {}
+        self._next_tid = 1
         self.queue: queue.Queue = queue.Queue()
-        self.tailing = False
         self._known_event_ids: set[str] = set()
-        self._loaded_path = ""          # file loaded by "Open File"
-        self._loaded_pos: int | None = None
 
-        # Filter variables
+        # Filter variables (shared by every tab)
         self.path_var       = tk.StringVar()
         self.filter_eventid = tk.StringVar(value="All")
         self.filter_result  = tk.StringVar(value="All")
@@ -507,10 +527,26 @@ class AuditViewer(tk.Tk):
         self.filter_to      = tk.StringVar()
         self.autoscroll     = tk.BooleanVar(value=True)
         self.live_filter    = tk.BooleanVar(value=True)
+        self.scope_all      = tk.BooleanVar(value=False)
 
         self._build_ui()
         self.after(150, self._drain_queue)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # ---------------------------------------------------- current-tab helpers
+
+    @property
+    def cur(self) -> "FileTab | None":
+        try:
+            sel = self.notebook.select()
+        except tk.TclError:
+            return None
+        if not sel:
+            return None
+        for t in self.tabs.values():
+            if str(t.frame) == str(sel):
+                return t
+        return None
 
     # ------------------------------------------------------------------ UI
 
@@ -537,6 +573,8 @@ class AuditViewer(tk.Tk):
         self.tail_btn.pack(side="left", padx=(6, 0))
         ttk.Button(top, text="Folder (rotated)...",
                    command=self._open_directory).pack(side="left", padx=(6, 0))
+        ttk.Button(top, text="Close Tab", command=self._close_tab).pack(
+            side="left", padx=(6, 0))
         ttk.Label(top, text="Vendor:").pack(side="left", padx=(10, 2))
         vcombo = ttk.Combobox(top, textvariable=self.vendor_mode, width=8,
                               values=["Auto", "NetApp", "Huawei"],
@@ -549,9 +587,12 @@ class AuditViewer(tk.Tk):
             side="left", padx=(6, 0))
         ttk.Button(top, text="Export CSV...", command=self._export_csv).pack(
             side="left", padx=(6, 0))
+        ttk.Checkbutton(top, text="All tabs",
+                        variable=self.scope_all).pack(side="left", padx=(6, 0))
 
         # ---- Filter panel ----
-        flt = ttk.LabelFrame(self, text="Filters", padding=(10, 6))
+        flt = ttk.LabelFrame(self, text="Filters (apply to all tabs)",
+                             padding=(10, 6))
         flt.pack(fill="x", padx=10, pady=(0, 4))
 
         ttk.Label(flt, text="Event ID:").grid(row=0, column=0, sticky="w")
@@ -623,44 +664,20 @@ class AuditViewer(tk.Tk):
         self.result_combo.bind("<<ComboboxSelected>>",
                                lambda _e: self._apply_filters())
 
-        # ---- Ana panel: tablo + detay ----
+        # ---- Main panel: file tabs + event details ----
         paned = ttk.PanedWindow(self, orient="vertical")
         paned.pack(fill="both", expand=True, padx=10, pady=(0, 4))
 
-        tree_frame = ttk.Frame(paned)
-        paned.add(tree_frame, weight=3)
+        self.notebook = ttk.Notebook(paned)
+        paned.add(self.notebook, weight=3)
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        # middle-click a tab header to close it
+        self.notebook.bind("<Button-2>", self._on_tab_middle_click)
 
-        cols = [c[0] for c in self.COLUMNS]
-        self.tree = ttk.Treeview(tree_frame, columns=cols,
-                                 show="headings", selectmode="browse")
-        for key, label, width in self.COLUMNS:
-            self.tree.heading(key, text=label,
-                              command=lambda k=key: self._sort_by(k))
-            self.tree.column(key, width=width, anchor="w", stretch=True)
-
-        self.tree.tag_configure("failure", background="#fde2e2")
-        self.tree.tag_configure("success", background="#e7f4ea")
-
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical",
-                            command=self.tree.yview)
-        hsb = ttk.Scrollbar(tree_frame, orient="horizontal",
-                            command=self.tree.xview)
-        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        vsb.grid(row=0, column=1, sticky="ns")
-        hsb.grid(row=1, column=0, sticky="we")
-        tree_frame.rowconfigure(0, weight=1)
-        tree_frame.columnconfigure(0, weight=1)
-
-        self.tree.bind("<<TreeviewSelect>>", self._on_select)
-        self.tree.bind("<Button-3>", self._show_context_menu)        # Windows/Linux
-        self.tree.bind("<Button-2>", self._show_context_menu)        # macOS
-        self.tree.bind("<Control-Button-1>", self._show_context_menu)  # macOS alt
-
-        # Right-click context menu
+        # Right-click context menu (shared)
         self._ctx_menu = tk.Menu(self, tearoff=0)
 
-        detail_frame = ttk.LabelFrame(paned, text="Event detaylari")
+        detail_frame = ttk.LabelFrame(paned, text="Event details")
         paned.add(detail_frame, weight=1)
         self.detail = tk.Text(detail_frame, wrap="word", height=10,
                               font=("Consolas", 9))
@@ -675,56 +692,292 @@ class AuditViewer(tk.Tk):
         ttk.Label(bar, textvariable=self.status_var, anchor="w",
                   padding=(8, 4)).pack(side="left", fill="x", expand=True)
 
-    # ----------------------------------------------------------- Dosya/tail
+    # ------------------------------------------------------------- Tab mgmt
+
+    def _add_tab(self, path: str, title: str | None = None) -> FileTab:
+        tid = self._next_tid
+        self._next_tid += 1
+        frame = ttk.Frame(self.notebook)
+        cols = [c[0] for c in self.COLUMNS]
+        tree = ttk.Treeview(frame, columns=cols, show="headings",
+                            selectmode="browse")
+        tab = FileTab(tid, path, title or os.path.basename(path), frame, tree)
+        for key, label, width in self.COLUMNS:
+            tree.heading(key, text=label,
+                         command=lambda k=key, t=tab: self._sort_by(t, k))
+            tree.column(key, width=width, anchor="w", stretch=True)
+        tree.tag_configure("failure", background="#fde2e2")
+        tree.tag_configure("success", background="#e7f4ea")
+
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="we")
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+
+        tree.bind("<<TreeviewSelect>>", lambda e, t=tab: self._on_select(e, t))
+        for seq in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):
+            tree.bind(seq, lambda e, t=tab: self._show_context_menu(e, t))
+
+        self.tabs[tid] = tab
+        self.notebook.add(frame, text=self._tab_label(tab))
+        self.notebook.select(frame)
+        return tab
+
+    @staticmethod
+    def _tab_label(tab: FileTab) -> str:
+        mark = "● " if tab.tailing else ""
+        return (f"{mark}{tab.title} "
+                f"({len(tab.filtered_indices):,}/{len(tab.events):,})")
+
+    def _update_tab_title(self, tab: FileTab):
+        try:
+            self.notebook.tab(tab.frame, text=self._tab_label(tab))
+        except tk.TclError:
+            pass
+
+    def _find_tab(self, path: str) -> "FileTab | None":
+        norm = os.path.normcase(os.path.abspath(path))
+        for t in self.tabs.values():
+            if not t.folder and os.path.normcase(t.path) == norm:
+                return t
+        return None
+
+    def _close_tab(self, tab: "FileTab | None" = None):
+        tab = tab or self.cur
+        if tab is None:
+            return
+        self._stop_tail(tab)
+        tab.gen += 1
+        self.tabs.pop(tab.tid, None)
+        try:
+            self.notebook.forget(tab.frame)
+        except tk.TclError:
+            pass
+        tab.frame.destroy()
+        self._set_detail("")
+        self._on_tab_changed()
+
+    def _on_tab_middle_click(self, event):
+        try:
+            idx = self.notebook.index(f"@{event.x},{event.y}")
+        except tk.TclError:
+            return
+        frames = self.notebook.tabs()
+        if 0 <= idx < len(frames):
+            for t in self.tabs.values():
+                if str(t.frame) == str(frames[idx]):
+                    self._close_tab(t)
+                    break
+
+    def _on_tab_changed(self, _event=None):
+        tab = self.cur
+        self._set_detail("")
+        if tab is None:
+            self.tail_btn.configure(text="Start Tail")
+            self.path_var.set("")
+            self._update_status()
+            return
+        self.path_var.set(tab.folder or tab.path)
+        self.tail_btn.configure(
+            text="Stop Tail" if tab.tailing else "Start Tail")
+        if tab.dirty:
+            self._render_tab(tab)
+        self._update_status()
+
+    # ----------------------------------------------------------- Open / tail
 
     def _browse(self):
-        p = filedialog.askopenfilename(
-            title="Select audit XML file",
+        paths = filedialog.askopenfilenames(
+            title="Select one or more audit XML files",
             filetypes=[("XML files", "*.xml"), ("All files", "*.*")])
-        if p:
-            self.path_var.set(p)
+        for p in self.tk.splitlist(paths):
+            self._open_path(p)
+
+    def _open_file(self):
+        """Open the file named in the File box in a new tab (or reload its tab)."""
+        path = self.path_var.get().strip()
+        if not path or not os.path.isfile(path):
+            messagebox.showerror("Error", "Please select a valid XML file.")
+            return
+        self._open_path(path)
+
+    def _open_path(self, path: str, tail: bool = False) -> "FileTab | None":
+        """Load a file into its own tab (reusing the tab if already open)."""
+        path = os.path.abspath(path)
+        if not os.path.isfile(path):
+            messagebox.showerror("Error", f"Not a file:\n{path}")
+            return None
+        tab = self._find_tab(path)
+        if tab is None:
+            tab = self._add_tab(path)
+        else:
+            self.notebook.select(tab.frame)
+        if tail:
+            self._start_tail(tab)
+        else:
+            self._load_tab(tab)
+        return tab
+
+    def _reset_tab(self, tab: FileTab):
+        tab.events.clear()
+        tab.filtered_indices.clear()
+        tab.loaded_pos = None
+        tab.gen += 1
+        self._clear_tree(tab)
+        tab.dirty = False
+        if tab is self.cur:
+            self._set_detail("")
+        self._update_tab_title(tab)
+
+    def _load_tab(self, tab: FileTab):
+        """Load the whole file once. No live following."""
+        self._stop_tail(tab)
+        self._reset_tab(tab)
+        tab.loaded_path = tab.path
+        tab.stop = threading.Event()
+        TailReader(tab.path, self.queue, tab.stop, follow=False,
+                   tag=(tab.tid, tab.gen)).start()
+        self.status_var.set(f"Loading: {tab.path}")
+
+    def _start_tail(self, tab: "FileTab | None" = None):
+        """Follow the file for new events. If it was already opened with
+        "Open File", continue from where that load ended; otherwise read the
+        file from the start and then follow it."""
+        tab = tab or self.cur
+        if tab is None:
+            return
+        if tab.folder:
+            if not tab.tailing:
+                self._tail_folder_latest(tab)
+            return
+        if not os.path.isfile(tab.path):
+            messagebox.showerror("Error", f"File not found:\n{tab.path}")
+            return
+        resume = (tab.loaded_pos if tab.loaded_path == tab.path
+                  and tab.events else None)
+        self._stop_tail(tab)
+        if resume is None:
+            self._reset_tab(tab)
+            tab.loaded_path = ""
+        tab.stop = threading.Event()
+        TailReader(tab.path, self.queue, tab.stop, start_pos=resume,
+                   tag=(tab.tid, tab.gen)).start()
+        tab.tailing = True
+        self._after_tail_state_change(tab)
+        self.status_var.set(f"Tailing: {tab.path}")
+
+    def _tail_folder_latest(self, tab: FileTab):
+        """Follow only the end of the newest file of a folder tab."""
+        if not os.path.isfile(tab.path):
+            return
+        tab.stop = threading.Event()
+        TailReader(tab.path, self.queue, tab.stop, start_at_end=True,
+                   tag=(tab.tid, tab.gen)).start()
+        tab.tailing = True
+        self._after_tail_state_change(tab)
+
+    def _stop_tail(self, tab: "FileTab | None" = None):
+        tab = tab or self.cur
+        if tab is None:
+            return
+        if tab.stop is not None:
+            tab.stop.set()
+        tab.stop = None
+        tab.tailing = False
+        self._after_tail_state_change(tab)
+
+    def _after_tail_state_change(self, tab: FileTab):
+        self._update_tab_title(tab)
+        if tab is self.cur:
+            self.tail_btn.configure(
+                text="Stop Tail" if tab.tailing else "Start Tail")
+
+    def _toggle_tail(self):
+        tab = self.cur
+        if tab is None:
+            path = self.path_var.get().strip()
+            if path and os.path.isfile(path):
+                self._open_path(path, tail=True)
+            else:
+                messagebox.showerror("Error", "Please select a valid XML file.")
+            return
+        if tab.tailing:
+            self._stop_tail(tab)
+            self.status_var.set("Tail stopped.")
+        else:
+            self._start_tail(tab)
+
+    def _reload(self):
+        """Re-read the current tab from scratch, keeping tail on if it was on."""
+        tab = self.cur
+        if tab is None:
+            return
+        if tab.folder:
+            self._load_folder(tab.folder, tab)
+            return
+        was_tailing = tab.tailing
+        tab.loaded_path = ""
+        if was_tailing:
+            self._start_tail(tab)
+        else:
+            self._load_tab(tab)
 
     def _open_directory(self):
-        """Bir klasor sec; icindeki tum audit XML dosyalarini (rotate edilmis
-        olanlar dahil) zaman sirasiyla yukle, sonra en yeni dosyayi tail et."""
+        """Pick a folder; load every audit XML in it (rotated files included)
+        oldest -> newest into ONE tab, then tail the newest file."""
         d = filedialog.askdirectory(
             title="Select audit XML folder (including rotated files)")
-        if not d:
-            return
-        # Audit dosyalarini bul: .xml ve .xml-N, .xml.N gibi varyantlar
+        if d:
+            self._load_folder(d)
+
+    def _load_folder(self, d: str, tab: "FileTab | None" = None):
         try:
             entries = os.listdir(d)
         except OSError as e:
             messagebox.showerror("Error", f"Cannot read folder: {e}")
             return
 
+        # .xml and variants such as .xml-1, .xml.0
         pattern = re.compile(r"\.xml(?:[._-]\d+)?$", re.IGNORECASE)
         files = []
         for name in entries:
             full = os.path.join(d, name)
-            if not os.path.isfile(full):
-                continue
-            if not pattern.search(name):
+            if not os.path.isfile(full) or not pattern.search(name):
                 continue
             try:
-                mtime = os.path.getmtime(full)
+                files.append((os.path.getmtime(full), full))
             except OSError:
                 continue
-            files.append((mtime, full))
 
         if not files:
             messagebox.showinfo(
-                "Folder", "Folderde uygun bir audit XML dosyasi bulunamadi.\n"
-                "(.xml, .xml-1, .xml.0 vs.)")
+                "Folder", "No audit XML files found in the folder.\n"
+                "(.xml, .xml-1, .xml.0 ...)")
             return
 
-        # Eski -> yeni siralayarak yukle
-        files.sort(key=lambda x: x[0])
+        files.sort(key=lambda x: x[0])          # oldest -> newest
+        latest = files[-1][1]
+        title = f"{os.path.basename(os.path.normpath(d)) or d} ({len(files)} files)"
 
-        # Mevcut tail/state'i sifirla
-        self._stop_tail()
-        self._reset_data()
-        self._loaded_path = ""
+        if tab is None:
+            for t in self.tabs.values():
+                if t.folder == d:
+                    tab = t
+                    break
+        if tab is None:
+            tab = self._add_tab(latest, title)
+        else:
+            self.notebook.select(tab.frame)
+        self._stop_tail(tab)
+        self._reset_tab(tab)
+        tab.folder = d
+        tab.path = latest
+        tab.title = title
+        tab.loaded_path = ""
 
         total = 0
         errors = []
@@ -738,17 +991,15 @@ class AuditViewer(tk.Tk):
             for m in EVENT_RE.finditer(data):
                 ev = parse_event(m.group(0))
                 if ev:
-                    self.events.append(ev)
+                    tab.events.append(ev)
                     total += 1
 
-        self._relabel_vendor(self.events)
-
-        # En yeni dosyayi tail et
-        latest = files[-1][1]
-        self.path_var.set(latest)
-        self._update_event_id_combo()
-        self._apply_filters()
-        self._start_tail_existing()
+        self._relabel_vendor(tab.events)
+        self._note_event_ids(tab.events)
+        self.path_var.set(d)
+        self._refilter_tab(tab)
+        self._render_tab(tab)
+        self._tail_folder_latest(tab)
 
         msg = (f"{len(files)} files, {total:,} events loaded. "
                f"Tail: {os.path.basename(latest)}")
@@ -756,134 +1007,55 @@ class AuditViewer(tk.Tk):
             msg += f"  ({len(errors)} files unreadable)"
         self.status_var.set(msg)
 
-    def _start_tail_existing(self):
-        """Mevcut self.events listesini SIFIRLAMADAN sadece dosyanin sonunu tail et.
-        Folder yukleme sonrasi en yeni dosyaya yeni event'leri eklemek icin."""
-        path = self.path_var.get().strip()
-        if not os.path.isfile(path):
-            return
-        self.tail_stop = threading.Event()
-        self.tail_thread = TailReader(path, self.queue, self.tail_stop,
-                                      start_at_end=True)
-        self.tail_thread.start()
-        self.tailing = True
-        self.tail_btn.configure(text="Stop Tail")
-
-    def _toggle_tail(self):
-        if self.tailing:
-            self._stop_tail()
-            self.status_var.set("Tail stopped.")
-        else:
-            self._start_tail()
-
-    def _reset_data(self):
-        self.events.clear()
-        self.filtered_indices.clear()
-        self._known_event_ids.clear()
-        self._clear_tree()
-        self._set_detail("")
-        self._loaded_pos = None
-        try:                      # drop events still queued from old readers
-            while True:
-                self.queue.get_nowait()
-        except queue.Empty:
-            pass
-
-    def _valid_path(self) -> str | None:
-        path = self.path_var.get().strip()
-        if not path or not os.path.isfile(path):
-            messagebox.showerror("Error", "Please select a valid XML file.")
-            return None
-        return path
-
-    def _open_file(self):
-        """Load the whole file once. No live following."""
-        path = self._valid_path()
-        if not path:
-            return
-        self._stop_tail()
-        self._reset_data()
-        self._loaded_path = path
-        self.tail_stop = threading.Event()
-        self.tail_thread = TailReader(path, self.queue, self.tail_stop,
-                                      follow=False)
-        self.tail_thread.start()
-        self.status_var.set(f"Loading: {path}")
-
-    def _start_tail(self):
-        """Follow the file for new events. If it was already opened with
-        "Open File", continue from where that load ended; otherwise read the
-        file from the start and then follow it."""
-        path = self._valid_path()
-        if not path:
-            return
-        resume = (self._loaded_pos if path == self._loaded_path
-                  and self.events else None)
-        self._stop_tail()
-        if resume is None:
-            self._reset_data()
-            self._loaded_path = ""
-        self.tail_stop = threading.Event()
-        self.tail_thread = TailReader(path, self.queue, self.tail_stop,
-                                      start_pos=resume)
-        self.tail_thread.start()
-        self.tailing = True
-        self.tail_btn.configure(text="Stop Tail")
-        self.status_var.set(f"Tailing: {path}")
-
-    def _stop_tail(self):
-        if self.tail_stop is not None:
-            self.tail_stop.set()
-        self.tail_thread = None
-        self.tail_stop = None
-        self.tailing = False
-        self.tail_btn.configure(text="Start Tail")
-
-    def _reload(self):
-        """Re-read the file from scratch, keeping tail on if it was on."""
-        if not self.path_var.get().strip():
-            return
-        was_tailing = self.tailing
-        self._loaded_path = ""
-        if was_tailing:
-            self._start_tail()
-        else:
-            self._open_file()
-
     # ----------------------------------------------------------- Queue draining
 
     def _drain_queue(self):
-        new_count = 0
+        changed = set()
         try:
             while True:
-                kind, payload = self.queue.get_nowait()
+                item = self.queue.get_nowait()
+                if len(item) != 3:
+                    continue
+                kind, payload, tag = item
+                tid, gen = tag
+                tab = self.tabs.get(tid)
+                if tab is None or tab.gen != gen:
+                    continue                     # closed / reset meanwhile
                 if kind == "error":
                     messagebox.showerror("Error", payload)
-                    self._stop_tail()
+                    self._stop_tail(tab)
                 elif kind == "initial":
                     self._relabel_vendor(payload)
-                    self.events.extend(payload)
-                    self._update_event_id_combo()
-                    self._apply_filters()
+                    tab.events.extend(payload)
+                    self._note_event_ids(payload)
+                    self._refilter_tab(tab)
+                    if tab is self.cur:
+                        self._render_tab(tab)
+                    else:
+                        tab.dirty = True
+                    changed.add(tab)
                 elif kind == "loaded":
-                    self._loaded_pos = payload
-                    self._update_status()
+                    tab.loaded_pos = payload
+                    changed.add(tab)
                 elif kind == "new":
                     self._relabel_vendor(payload)
-                    start = len(self.events)
-                    self.events.extend(payload)
-                    self._update_event_id_combo()
-                    self._append_filtered_from(start)
-                    new_count += len(payload)
+                    start = len(tab.events)
+                    tab.events.extend(payload)
+                    self._note_event_ids(payload)
+                    self._append_filtered_from(tab, start)
+                    changed.add(tab)
                 elif kind == "rotated":
-                    self.events.clear()
-                    self.filtered_indices.clear()
-                    self._known_event_ids.clear()
-                    self._clear_tree()
-                    self.status_var.set("File rotated - re-reading from start.")
+                    tab.events.clear()
+                    tab.filtered_indices.clear()
+                    self._clear_tree(tab)
+                    changed.add(tab)
+                    self.status_var.set(
+                        f"{tab.title}: file rotated - re-reading from start.")
         except queue.Empty:
             pass
-        if new_count:
+        for tab in changed:
+            self._update_tab_title(tab)
+        if self.cur in changed:
             self._update_status()
         self.after(150, self._drain_queue)
 
@@ -896,62 +1068,70 @@ class AuditViewer(tk.Tk):
                             if mode == "Auto" else mode)
 
     def _on_vendor_changed(self):
-        self._relabel_vendor(self.events)
+        for t in self.tabs.values():
+            self._relabel_vendor(t.events)
         self._apply_filters()
 
-    def _update_event_id_combo(self):
-        ids = {e["EventID"] for e in self.events if e["EventID"]}
-        new = ids - self._known_event_ids
+    def _note_event_ids(self, events: list[dict]):
+        new = {e["EventID"] for e in events if e["EventID"]} \
+            - self._known_event_ids
         if not new:
             return
-        self._known_event_ids |= ids
-        values = ["All"] + sorted(self._known_event_ids)
-        self.eventid_combo["values"] = values
+        self._known_event_ids |= new
+        self.eventid_combo["values"] = ["All"] + sorted(self._known_event_ids)
 
-    # ----------------------------------------------------------- Filtreleme
+    # ----------------------------------------------------------- Filtering
+
+    def _make_filter(self):
+        """Snapshot the filter widgets once; returns a fast predicate."""
+        f_id = self.filter_eventid.get()
+        f_res = self.filter_result.get()
+        f_user = self.filter_user.get().strip().lower()
+        f_ip = self.filter_ip.get().strip().lower()
+        f_from = self.filter_from.get().strip()
+        f_to = self.filter_to.get().strip()
+        f_search = self.filter_search.get().strip().lower()
+
+        def passes(ev: dict) -> bool:
+            if f_id != "All" and ev.get("EventID") != f_id:
+                return False
+            if f_res != "All" and ev.get("Result") != f_res:
+                return False
+            if f_user and f_user not in ev.get("User", "").lower():
+                return False
+            if f_ip and f_ip not in ev.get("IP", "").lower():
+                return False
+            # TimeDisplay = "YYYY-MM-DD HH:MM:SS" (string-comparable)
+            td = ev.get("TimeDisplay", "")
+            if f_from and td and td < f_from:
+                return False
+            if f_to and td and td > f_to:
+                return False
+            if f_search:
+                parts = [str(v) for v in ev.values() if isinstance(v, str)]
+                parts.extend(ev.get("_extra", {}).values())
+                if f_search not in " ".join(parts).lower():
+                    return False
+            return True
+
+        return passes
 
     def _passes(self, ev: dict) -> bool:
-        f_id = self.filter_eventid.get()
-        if f_id != "All" and ev.get("EventID") != f_id:
-            return False
-        f_res = self.filter_result.get()
-        if f_res != "All" and ev.get("Result") != f_res:
-            return False
-        f_user = self.filter_user.get().strip().lower()
-        if f_user and f_user not in ev.get("User", "").lower():
-            return False
-        f_ip = self.filter_ip.get().strip().lower()
-        if f_ip and f_ip not in ev.get("IP", "").lower():
-            return False
-        # Time range (TimeDisplay = "YYYY-MM-DD HH:MM:SS" string-comparable)
-        td = ev.get("TimeDisplay", "")
-        f_from = self.filter_from.get().strip()
-        if f_from and td and td < f_from:
-            return False
-        f_to = self.filter_to.get().strip()
-        if f_to and td and td > f_to:
-            return False
-        f_search = self.filter_search.get().strip().lower()
-        if f_search:
-            haystack_parts = [str(v) for k, v in ev.items()
-                              if isinstance(v, str)]
-            haystack_parts.extend(ev.get("_extra", {}).values())
-            if f_search not in " ".join(haystack_parts).lower():
-                return False
-        return True
+        return self._make_filter()(ev)
 
     def _set_relative_range(self, minutes: int):
         """Set filter to 'last N minutes' — uses the most recent event time
-        in the dataset as reference (for live tail this means 'last N min from now')."""
-        if not self.events:
+        across all open tabs as the reference (for live tail this means
+        'last N min from now')."""
+        if not any(t.events for t in self.tabs.values()):
             messagebox.showinfo("Time", "Open a file first.")
             return
-        # Find the latest event with a parseable time
         last_ts = ""
-        for ev in reversed(self.events):
-            if ev.get("TimeDisplay"):
-                last_ts = ev["TimeDisplay"]
-                break
+        for t in self.tabs.values():
+            for ev in reversed(t.events):
+                if ev.get("TimeDisplay"):
+                    last_ts = max(last_ts, ev["TimeDisplay"])
+                    break
         if not last_ts:
             return
         try:
@@ -971,39 +1151,62 @@ class AuditViewer(tk.Tk):
             return
         if self._filter_after_id is not None:
             self.after_cancel(self._filter_after_id)
-        # 250 ms bekle, sonra uygula (debounce)
+        # wait 250 ms, then apply (debounce)
         self._filter_after_id = self.after(250, self._apply_filters)
 
-    def _apply_filters(self):
-        self._filter_after_id = None
-        self._clear_tree()
-        self.filtered_indices = [i for i, e in enumerate(self.events)
-                                 if self._passes(e)]
-        to_show = self.filtered_indices[-MAX_DISPLAY_ROWS:]
-        for idx in to_show:
-            self._insert_row(idx, self.events[idx])
-        self._update_status()
-        if self.autoscroll.get():
-            self._scroll_to_bottom()
+    def _refilter_tab(self, tab: FileTab):
+        passes = self._make_filter()
+        tab.filtered_indices = [i for i, e in enumerate(tab.events)
+                                if passes(e)]
+        tab.dirty = True
+        self._update_tab_title(tab)
 
-    def _append_filtered_from(self, start_index: int):
+    def _apply_filters(self):
+        """Apply the shared filters to EVERY tab; only the visible tab is
+        rendered now, the others on demand when selected."""
+        self._filter_after_id = None
+        passes = self._make_filter()
+        for tab in self.tabs.values():
+            tab.filtered_indices = [i for i, e in enumerate(tab.events)
+                                    if passes(e)]
+            tab.dirty = True
+            self._update_tab_title(tab)
+        cur = self.cur
+        if cur:
+            self._render_tab(cur)
+        self._update_status()
+
+    def _render_tab(self, tab: FileTab):
+        self._clear_tree(tab)
+        for idx in tab.filtered_indices[-MAX_DISPLAY_ROWS:]:
+            self._insert_row(tab, idx, tab.events[idx])
+        tab.dirty = False
+        if self.autoscroll.get():
+            self._scroll_to_bottom(tab)
+
+    def _append_filtered_from(self, tab: FileTab, start_index: int):
+        passes = self._make_filter()
+        visible = tab is self.cur and not tab.dirty
         added = 0
-        for i in range(start_index, len(self.events)):
-            ev = self.events[i]
-            if self._passes(ev):
-                self.filtered_indices.append(i)
-                self._insert_row(i, ev)
+        for i in range(start_index, len(tab.events)):
+            ev = tab.events[i]
+            if passes(ev):
+                tab.filtered_indices.append(i)
                 added += 1
-        # Treeview cap
-        children = self.tree.get_children()
+                if visible:
+                    self._insert_row(tab, i, ev)
+        if not visible:
+            tab.dirty = tab.dirty or added > 0
+            return
+        children = tab.tree.get_children()
         excess = len(children) - MAX_DISPLAY_ROWS
         if excess > 0:
             for iid in children[:excess]:
-                self.tree.delete(iid)
+                tab.tree.delete(iid)
         if added and self.autoscroll.get():
-            self._scroll_to_bottom()
+            self._scroll_to_bottom(tab)
 
-    def _insert_row(self, idx: int, ev: dict):
+    def _insert_row(self, tab: FileTab, idx: int, ev: dict):
         values = [ev.get(c[0], "") for c in self.COLUMNS]
         result = ev.get("Result", "")
         tag = ()
@@ -1011,7 +1214,7 @@ class AuditViewer(tk.Tk):
             tag = ("failure",)
         elif "Success" in result:
             tag = ("success",)
-        self.tree.insert("", "end", iid=str(idx), values=values, tags=tag)
+        tab.tree.insert("", "end", iid=str(idx), values=values, tags=tag)
 
     def _reset_filters(self):
         self.filter_eventid.set("All")
@@ -1023,47 +1226,43 @@ class AuditViewer(tk.Tk):
         self.filter_to.set("")
         self._apply_filters()
 
-    def _scroll_to_bottom(self):
-        children = self.tree.get_children()
+    def _scroll_to_bottom(self, tab: FileTab):
+        children = tab.tree.get_children()
         if children:
-            self.tree.see(children[-1])
+            tab.tree.see(children[-1])
 
-    def _clear_tree(self):
+    def _clear_tree(self, tab: FileTab):
         # Bulk delete is faster than item-by-item
-        children = self.tree.get_children()
+        children = tab.tree.get_children()
         if children:
-            self.tree.delete(*children)
+            tab.tree.delete(*children)
 
     # ----------------------------------------------------------- Sort
 
-    def _sort_by(self, col_key: str):
-        if not self.filtered_indices:
+    def _sort_by(self, tab: FileTab, col_key: str):
+        if not tab.filtered_indices:
             return
-        reverse = getattr(self, "_sort_reverse_" + col_key, False)
-        self.filtered_indices.sort(
-            key=lambda i: self.events[i].get(col_key, ""),
-            reverse=reverse)
-        setattr(self, "_sort_reverse_" + col_key, not reverse)
-        self._clear_tree()
-        for idx in self.filtered_indices[-MAX_DISPLAY_ROWS:]:
-            self._insert_row(idx, self.events[idx])
+        reverse = tab.sort_reverse.get(col_key, False)
+        tab.filtered_indices.sort(
+            key=lambda i: tab.events[i].get(col_key, ""), reverse=reverse)
+        tab.sort_reverse[col_key] = not reverse
+        self._render_tab(tab)
 
-    # ----------------------------------------------------------- Sag tik menusu
+    # ----------------------------------------------------------- Context menu
 
-    def _show_context_menu(self, event):
-        """Tablo satirinda sag tik: hizli filtre/aksiyon menusu."""
-        # Mouse altindaki satiri sec
-        iid = self.tree.identify_row(event.y)
+    def _show_context_menu(self, event, tab: FileTab):
+        """Right-click on a row: quick filter / action menu."""
+        iid = tab.tree.identify_row(event.y)
         if not iid:
             return
-        self.tree.selection_set(iid)
+        tab.tree.selection_set(iid)
         try:
             idx = int(iid)
         except ValueError:
             return
-        if not (0 <= idx < len(self.events)):
+        if not (0 <= idx < len(tab.events)):
             return
-        ev = self.events[idx]
+        ev = tab.events[idx]
 
         ip   = ev.get("IP", "")
         user = ev.get("User", "")
@@ -1074,7 +1273,6 @@ class AuditViewer(tk.Tk):
         m = self._ctx_menu
         m.delete(0, "end")
 
-        # Filtreleme
         if ip:
             m.add_command(label=f"Filter by IP:  {ip}",
                           command=lambda v=ip: self._set_and_apply("ip", v))
@@ -1095,40 +1293,38 @@ class AuditViewer(tk.Tk):
                 command=lambda v=reason: self._set_and_apply("search", v))
         m.add_separator()
 
-        # Kombine drill-in
         if ip and user:
             m.add_command(
-                label=f"This IP + this user (failure analysis)",
+                label="This IP + this user (failure analysis)",
                 command=lambda i=ip, u=user: self._set_and_apply_combo(
                     ip=i, user=u, only_failures=True))
         if ip:
             m.add_command(
-                label=f"Only failures from this IP",
+                label="Only failures from this IP",
                 command=lambda i=ip: self._set_and_apply_combo(
                     ip=i, only_failures=True))
         if user:
             m.add_command(
-                label=f"Only failures from this user",
+                label="Only failures from this user",
                 command=lambda u=user: self._set_and_apply_combo(
                     user=u, only_failures=True))
         m.add_separator()
 
-        # Kopyalama
         if ip:
-            m.add_command(label=f"Copy IP to clipboard",
+            m.add_command(label="Copy IP to clipboard",
                           command=lambda v=ip: self._to_clipboard(v))
         if user:
-            m.add_command(label=f"Copy user to clipboard",
+            m.add_command(label="Copy user to clipboard",
                           command=lambda v=user: self._to_clipboard(v))
         m.add_command(label="Copy full details to clipboard",
-                      command=lambda i=idx: self._copy_event_details(i))
+                      command=lambda t=tab, i=idx: self._copy_event_details(t, i))
         m.add_separator()
 
-        # Reset
         m.add_command(label="Reset all filters",
                       command=self._reset_filters)
+        m.add_command(label="Close this tab",
+                      command=lambda t=tab: self._close_tab(t))
 
-        # Show menu
         try:
             m.tk_popup(event.x_root, event.y_root)
         finally:
@@ -1146,7 +1342,7 @@ class AuditViewer(tk.Tk):
         self._apply_filters()
 
     def _set_and_apply_combo(self, ip="", user="", only_failures=False):
-        """Birden fazla filtreyi tek seferde uygula (drill-in icin)."""
+        """Apply several filters at once (drill-in)."""
         if ip:
             self.filter_ip.set(ip)
         if user:
@@ -1159,37 +1355,38 @@ class AuditViewer(tk.Tk):
         try:
             self.clipboard_clear()
             self.clipboard_append(text)
-            self.update()  # macOS'ta gerekli
+            self.update()  # needed on macOS
             self.status_var.set(f"Copied to clipboard: {text}")
         except tk.TclError:
             pass
 
-    def _copy_event_details(self, idx: int):
-        if not (0 <= idx < len(self.events)):
+    def _copy_event_details(self, tab: FileTab, idx: int):
+        if not (0 <= idx < len(tab.events)):
             return
-        ev = self.events[idx]
+        ev = tab.events[idx]
         lines = [f"{k}\t{ev[k]}" for k in DETAIL_ORDER if ev.get(k)]
         for k, v in ev.get("_extra", {}).items():
             lines.append(f"{k}\t{v}")
         self._to_clipboard("\n".join(lines))
 
-    # ----------------------------------------------------------- Detay paneli
+    # ----------------------------------------------------------- Detail pane
 
-    def _on_select(self, _event):
-        sel = self.tree.selection()
+    def _on_select(self, _event, tab: FileTab):
+        sel = tab.tree.selection()
         if not sel:
             return
         try:
             idx = int(sel[0])
         except ValueError:
             return
-        if not (0 <= idx < len(self.events)):
+        if not (0 <= idx < len(tab.events)):
             return
-        ev = self.events[idx]
+        ev = tab.events[idx]
 
         lines = [f"{k:<28} {ev[k]}" for k in DETAIL_ORDER if ev.get(k)]
         for k, v in ev.get("_extra", {}).items():
             lines.append(f"{k:<28} {v}")
+        lines.append(f"{'SourceFile':<28} {tab.title}")
         self._set_detail("\n".join(lines))
 
     def _set_detail(self, text: str):
@@ -1202,34 +1399,59 @@ class AuditViewer(tk.Tk):
     # ----------------------------------------------------------- Status
 
     def _update_status(self):
-        total = len(self.events)
-        shown = len(self.filtered_indices)
-        rendered = len(self.tree.get_children())
-        state = "Tail active" if self.tailing else "Stopped"
-        vendor = ""
-        if self.events:
+        tab = self.cur
+        if tab is None:
+            self.status_var.set("Ready. Select an XML file.")
+            return
+        total = len(tab.events)
+        shown = len(tab.filtered_indices)
+        rendered = len(tab.tree.get_children())
+        state = "Tail active" if tab.tailing else "Stopped"
+        prefix = ""
+        if len(self.tabs) > 1:
+            prefix = f"Tabs: {len(self.tabs)}  |  "
+        if tab.events:
             mode = self.vendor_mode.get()
-            vendor = (f"Vendor: {self.events[-1].get('Vendor', '')}"
-                      f"{' (auto-detected)' if mode == 'Auto' else ' (manual)'}"
-                      "  |  ")
+            prefix += (f"Vendor: {tab.events[-1].get('Vendor', '')}"
+                       f"{' (auto-detected)' if mode == 'Auto' else ' (manual)'}"
+                       "  |  ")
         if PARSE_STATS["failed"] or PARSE_STATS["repaired"]:
-            vendor += (f"Unparsable: {PARSE_STATS['failed']:,} / "
+            prefix += (f"Unparsable: {PARSE_STATS['failed']:,} / "
                        f"repaired: {PARSE_STATS['repaired']:,}  |  ")
-        msg = (f"{vendor}{state}  |  Total: {total:,}  |  "
+        msg = (f"{prefix}{state}  |  Total: {total:,}  |  "
                f"Filtered: {shown:,}  |  Shown: {rendered:,}")
         if rendered < shown:
-            msg += f"  (son {MAX_DISPLAY_ROWS:,} satir)"
+            msg += f"  (last {MAX_DISPLAY_ROWS:,} rows)"
         self.status_var.set(msg)
+
+    # ------------------------------------------------------------ Scope
+
+    def _scope_pairs(self) -> list[tuple[FileTab, dict]]:
+        """(tab, event) of every FILTERED event in scope: the current tab, or
+        all tabs when "All tabs" is ticked."""
+        if self.scope_all.get():
+            tabs = list(self.tabs.values())
+        else:
+            cur = self.cur
+            tabs = [cur] if cur else []
+        return [(t, t.events[i]) for t in tabs for i in t.filtered_indices]
 
     # ----------------------------------------------------------- Statistics
 
     def _show_stats(self):
-        """Open a summary statistics window for the filtered events."""
-        if not self.events:
+        """Open a summary statistics window for the filtered events of the
+        current tab (or of all tabs when "All tabs" is ticked)."""
+        if not any(t.events for t in self.tabs.values()):
             messagebox.showinfo("Statistics", "Open a file first.")
             return
-        indices = self.filtered_indices or list(range(len(self.events)))
-        events = [self.events[i] for i in indices]
+        pairs = self._scope_pairs()
+        if not pairs:
+            messagebox.showinfo("Statistics",
+                                "No events match the current filters.")
+            return
+        events = [ev for _, ev in pairs]
+        scope = ("All tabs" if self.scope_all.get()
+                 else (self.cur.title if self.cur else ""))
 
         # Counts
         total = len(events)
@@ -1270,7 +1492,7 @@ class AuditViewer(tk.Tk):
                 hours_c[td[:13]] += 1   # YYYY-MM-DD HH
 
         win = tk.Toplevel(self)
-        win.title("Statistics Summary")
+        win.title(f"Statistics Summary - {scope}")
         win.geometry("1100x720")
         win.transient(self)
 
@@ -1302,8 +1524,8 @@ class AuditViewer(tk.Tk):
 
         def make_table(parent, columns, rows):
             frm = ttk.Frame(parent)
-            tv = ttk.Treeview(frm, columns=columns, show="headings",
-                              selectmode="browse")
+            tv = ttk.Treeview(frm, columns=[c for c, _w in columns],
+                              show="headings", selectmode="browse")
             for c, w in columns:
                 tv.heading(c, text=c)
                 tv.column(c, width=w, anchor="w")
@@ -1429,7 +1651,8 @@ class AuditViewer(tk.Tk):
     # ----------------------------------------------------------- CSV export
 
     def _export_csv(self):
-        if not self.filtered_indices:
+        pairs = self._scope_pairs()
+        if not pairs:
             messagebox.showinfo(
                 "CSV", "No events to export (no records match the filter).")
             return
@@ -1445,23 +1668,23 @@ class AuditViewer(tk.Tk):
                 "IpAddress", "IpPort",
                 "TargetUserName", "TargetDomainName", "TargetUserSid",
                 "Status", "FailureReason", "FailureReasonString",
-                "AuthenticationPackageName", "LogonType"]
+                "AuthenticationPackageName", "LogonType", "SourceFile"]
         try:
             with open(p, "w", newline="", encoding="utf-8-sig") as f:
                 w = csv.writer(f, delimiter=";")
                 w.writerow(cols)
-                for idx in self.filtered_indices:
-                    ev = self.events[idx]
-                    w.writerow([ev.get(c, "") for c in cols])
+                for t, ev in pairs:
+                    w.writerow([ev.get(c, "") for c in cols[:-1]] + [t.title])
             messagebox.showinfo(
-                "CSV", f"{len(self.filtered_indices):,} rows saved:\n{p}")
+                "CSV", f"{len(pairs):,} rows saved:\n{p}")
         except OSError as e:
             messagebox.showerror("CSV error", str(e))
 
     # ----------------------------------------------------------- Kapanis
 
     def _on_close(self):
-        self._stop_tail()
+        for t in list(self.tabs.values()):
+            self._stop_tail(t)
         self.destroy()
 
 
@@ -1471,10 +1694,10 @@ def _parse_cli_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="xml_audit_viewer",
         description="CIFS Security Audit XML viewer for NetApp ONTAP and Huawei OceanStor (GUI, tail).")
-    p.add_argument("path", nargs="?",
-                   help="XML file to load on startup (optional).")
+    p.add_argument("paths", nargs="*", metavar="path",
+                   help="XML file(s) to open on startup, one tab each (optional).")
     p.add_argument("--tail", "-t", action="store_true",
-                   help="Automatically open file and start tailing.")
+                   help="Open the file(s) and start tailing each of them.")
     p.add_argument("--filter-ip", default="",
                    help="Pre-fill the IP-contains filter on startup.")
     p.add_argument("--filter-user", default="",
@@ -1494,8 +1717,6 @@ def main(argv: list[str] | None = None):
     args = _parse_cli_args(argv if argv is not None else sys.argv[1:])
     app = AuditViewer()
 
-    if args.path:
-        app.path_var.set(os.path.abspath(args.path))
     if args.filter_ip:
         app.filter_ip.set(args.filter_ip)
     if args.filter_user:
@@ -1506,9 +1727,12 @@ def main(argv: list[str] | None = None):
         app.vendor_mode.set("NetApp" if args.vendor == "Netapp" else args.vendor)
     if args.only_failures:
         app.filter_result.set("Audit Failure")
-    if args.path and args.tail:
-        # Tk event loop baslamadan once start_tail cagirma; minik gecikme ile yap
-        app.after(200, app._start_tail)
+    if args.paths:
+        # open after the Tk event loop has started
+        def _open_startup_files():
+            for pth in args.paths:
+                app._open_path(pth, tail=args.tail)
+        app.after(200, _open_startup_files)
 
     app.mainloop()
 

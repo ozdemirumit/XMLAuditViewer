@@ -559,8 +559,8 @@ class AuditViewer(tk.Tk):
         style.configure("Treeview", rowheight=22, font=("Segoe UI", 9))
         style.configure("Treeview.Heading", font=("Segoe UI", 9, "bold"))
 
-        # ---- Top bar: file selection and tail control ----
-        top = ttk.Frame(self, padding=(10, 8, 10, 4))
+        # ---- Top bar, row 1: file selection and tail control ----
+        top = ttk.Frame(self, padding=(10, 8, 10, 0))
         top.pack(fill="x")
         ttk.Label(top, text="File:").pack(side="left")
         ttk.Entry(top, textvariable=self.path_var).pack(
@@ -575,20 +575,24 @@ class AuditViewer(tk.Tk):
                    command=self._open_directory).pack(side="left", padx=(6, 0))
         ttk.Button(top, text="Close Tab", command=self._close_tab).pack(
             side="left", padx=(6, 0))
-        ttk.Label(top, text="Vendor:").pack(side="left", padx=(10, 2))
-        vcombo = ttk.Combobox(top, textvariable=self.vendor_mode, width=8,
+
+        # ---- Top bar, row 2: vendor, reload, statistics, export ----
+        top2 = ttk.Frame(self, padding=(10, 4, 10, 4))
+        top2.pack(fill="x")
+        ttk.Label(top2, text="Vendor:").pack(side="left", padx=(0, 2))
+        vcombo = ttk.Combobox(top2, textvariable=self.vendor_mode, width=8,
                               values=["Auto", "NetApp", "Huawei"],
                               state="readonly")
         vcombo.pack(side="left")
         vcombo.bind("<<ComboboxSelected>>", lambda _e: self._on_vendor_changed())
-        ttk.Button(top, text="Reload", command=self._reload).pack(
+        ttk.Button(top2, text="Reload", command=self._reload).pack(
+            side="left", padx=(10, 0))
+        ttk.Button(top2, text="Statistics...", command=self._show_stats).pack(
             side="left", padx=(6, 0))
-        ttk.Button(top, text="Statistics...", command=self._show_stats).pack(
+        ttk.Button(top2, text="Export CSV...", command=self._export_csv).pack(
             side="left", padx=(6, 0))
-        ttk.Button(top, text="Export CSV...", command=self._export_csv).pack(
-            side="left", padx=(6, 0))
-        ttk.Checkbutton(top, text="All tabs",
-                        variable=self.scope_all).pack(side="left", padx=(6, 0))
+        ttk.Checkbutton(top2, text="Statistics / CSV for all tabs",
+                        variable=self.scope_all).pack(side="left", padx=(10, 0))
 
         # ---- Filter panel ----
         flt = ttk.LabelFrame(self, text="Filters (apply to all tabs)",

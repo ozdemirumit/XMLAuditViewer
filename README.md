@@ -7,6 +7,19 @@ Open multi-hundred-MB audit files in seconds, follow them like `tail -f` while t
 [![Download](https://img.shields.io/github/v/release/ozdemirumit/XMLAuditViewer?label=download&color=blue)](https://github.com/ozdemirumit/XMLAuditViewer/releases/latest) [![Downloads](https://img.shields.io/github/downloads/ozdemirumit/XMLAuditViewer/total?label=downloads)](https://github.com/ozdemirumit/XMLAuditViewer/releases) [![PyPI](https://img.shields.io/pypi/v/xml-audit-viewer.svg?label=pypi&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) [![Python versions](https://img.shields.io/pypi/pyversions/xml-audit-viewer.svg?label=python&cacheSeconds=300)](https://pypi.org/project/xml-audit-viewer/) ![status: working](https://img.shields.io/badge/status-working-brightgreen) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib%20only-success) ![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 
+![XML Audit Viewer: two files in tabs, one filter applied to both](docs/screenshot-main.png)
+
+*Two audit files open in separate tabs. The user filter `bob` is applied to **both** tabs at once (97 of 548 and 67 of 334 events match). Sample data is synthetic.*
+
+<details>
+<summary>More screenshots</summary>
+
+![Statistics window: top failing IPs](docs/screenshot-stats.png)
+
+*Statistics window — the `203.0.113.77` host produced 60 of the 68 failed logons.*
+
+</details>
+
 ## Download
 
 | | |
@@ -178,7 +191,7 @@ xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 | **Reload** | Re-read the active tab's file from scratch; tailing stays on if it was on. |
 | **Statistics…** | Statistics for the filtered events of the active tab. |
 | **Export CSV…** | Save the filtered events of the active tab as CSV. |
-| **All tabs** (checkbox) | Make *Statistics…* and *Export CSV…* cover the filtered events of **all** tabs instead of only the active one. |
+| **Statistics / CSV for all tabs** (checkbox) | Make *Statistics…* and *Export CSV…* cover the filtered events of **all** tabs instead of only the active one. |
 
 ### Filters
 
@@ -218,7 +231,7 @@ Right-click a row to:
 
 ### Statistics window
 
-Computed over the currently filtered events of the active tab — or of all tabs when **All tabs** is ticked (the window title says which). The header shows totals, success/failure counts, unique IPs and users, time range and per-vendor counts.
+Computed over the currently filtered events of the active tab — or of all tabs when **Statistics / CSV for all tabs** is ticked (the window title says which). The header shows totals, success/failure counts, unique IPs and users, time range and per-vendor counts.
 
 | Tab | Shows |
 |---|---|
@@ -236,7 +249,7 @@ Computed over the currently filtered events of the active tab — or of all tabs
 
 ### CSV export
 
-Exports the **filtered** events (active tab, or all tabs when **All tabs** is ticked) with these columns (`;`-delimited, UTF-8 with BOM):
+Exports the **filtered** events (active tab, or all tabs when **Statistics / CSV for all tabs** is ticked) with these columns (`;`-delimited, UTF-8 with BOM):
 
 `TimeDisplay, Vendor, EventID, EventName, Source, Result, Computer, IP, User, Domain, Share, ObjectName, ObjectType, Action, AccessMask, IpAddress, IpPort, TargetUserName, TargetDomainName, TargetUserSid, Status, FailureReason, FailureReasonString, AuthenticationPackageName, LogonType, SourceFile`
 

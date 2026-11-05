@@ -88,7 +88,7 @@ The vendor is **detected automatically** from the file (see [Vendor selector](#t
 ## Features
 
 **Loading and following**
-- **Many files, one tab each** — open several audit files at once (multi-select in *Browse…*, several command-line paths, or *Open File* repeatedly). Each file gets its own tab titled `name (filtered/total)`, with a dot while it is being tailed. Opening a file that is already open just switches to its tab.
+- **Many files, one tab each** — open several audit files at once (multi-select in *Browse…*, several command-line paths, or *Open File* repeatedly). *Open All in Folder…* opens every file of a folder this way in one go. Each file gets its own tab titled `name (filtered/total)`, with a dot while it is being tailed. Opening a file that is already open just switches to its tab.
 - **One set of filters for every tab** — type a user, IP, time range or search once and **all tabs** are filtered together, so you can compare e.g. the same user across several arrays or days at a glance. Statistics and CSV export can cover the current tab or **all tabs**.
 - **Open File** — load a file once, instantly, with no following.
 - **Start Tail / Stop Tail** — follow the file like `tail -f`; new events stream into the table. If you opened the file first, tailing continues exactly where the load ended (no duplicates, no re-reading).
@@ -165,7 +165,7 @@ xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 
 | Flag | Description |
 |---|---|
-| `path` (positional, one or more) | XML file(s) to open on startup, **one tab each**. |
+| `path` (positional, one or more) | XML file(s) to open on startup, **one tab each**. A folder opens all its audit files, one tab per file. |
 | `--tail`, `-t` | Also start following every file given on the command line. |
 | `--filter-ip IP` | Pre-fill the *IP contains* filter. |
 | `--filter-user USER` | Pre-fill the *User contains* filter. |
@@ -185,7 +185,8 @@ xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 | **Browse…** | Pick **one or more** audit XML files; each opens in its own tab. |
 | **Open File** | Open the file named in the File box in a new tab (or reload it if already open). Does not follow it. |
 | **Start Tail / Stop Tail** | Follow the **active tab's** file for new events. If the file was opened with *Open File*, continues from where it ended; otherwise reads the file from the start and then follows it. Each tab tails independently. |
-| **Folder (rotated)…** | Pick a folder; loads every `*.xml`, `*.xml-N`, `*.xml.N` file oldest → newest into **one tab**, then tails the newest. |
+| **Open All in Folder…** | Pick a folder; **every** audit XML file in it opens in its own tab (oldest first). Asks first if there are more than 20. |
+| **Folder (rotated)…** | Pick a folder; loads every `*.xml`, `*.xml-N`, `*.xml.N` file oldest → newest merged into **one tab** (one rotated log), then tails the newest. |
 | **Close Tab** | Close the active tab and stop its tail (also: middle-click a tab, or right-click a row → *Close this tab*). |
 | **Vendor** | `Auto` (default) uses the vendor detected from each event and shows it in the status bar; `NetApp` / `Huawei` force the label. Parsing is identical for both — this only sets the label shown in the status bar, detail pane, CSV and search. |
 | **Reload** | Re-read the active tab's file from scratch; tailing stays on if it was on. |

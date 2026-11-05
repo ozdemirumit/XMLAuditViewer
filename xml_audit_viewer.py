@@ -571,6 +571,8 @@ class AuditViewer(tk.Tk):
         self.tail_btn = ttk.Button(top, text="Start Tail",
                                    command=self._toggle_tail)
         self.tail_btn.pack(side="left", padx=(6, 0))
+        ttk.Button(top, text="Open All in Folder...",
+                   command=self._open_all_in_folder).pack(side="left", padx=(6, 0))
         ttk.Button(top, text="Folder (rotated)...",
                    command=self._open_directory).pack(side="left", padx=(6, 0))
         ttk.Button(top, text="Close Tab", command=self._close_tab).pack(
@@ -938,13 +940,15 @@ class AuditViewer(tk.Tk):
         if d:
             self._load_folder(d)
 
-    def _load_folder(self, d: str, tab: "FileTab | None" = None):
+    @staticmethod
+    def _list_audit_files(d: str) -> "list[tuple[float, str]] | None":
+        """(mtime, path) of the audit XML files in a folder, oldest first;
+        None if the folder cannot be read."""
         try:
             entries = os.listdir(d)
         except OSError as e:
             messagebox.showerror("Error", f"Cannot read folder: {e}")
-            return
-
+            return None
         # .xml and variants such as .xml-1, .xml.0
         pattern = re.compile(r"\.xml(?:[._-]\d+)?$", re.IGNORECASE)
         files = []
@@ -956,14 +960,46 @@ class AuditViewer(tk.Tk):
                 files.append((os.path.getmtime(full), full))
             except OSError:
                 continue
+        files.sort(key=lambda x: x[0])          # oldest -> newest
+        return files
 
+    def _open_all_in_folder(self):
+        d = filedialog.askdirectory(
+            title="Select a folder - every audit XML file in it opens in its own tab")
+        if d:
+            self._open_all_in_dir(d)
+
+    def _open_all_in_dir(self, d: str, confirm: bool = True) -> int:
+        """Open every audit XML file of a folder, one tab per file (oldest
+        first). Returns the number of files opened."""
+        files = self._list_audit_files(d)
+        if files is None:
+            return 0
+        if not files:
+            messagebox.showinfo(
+                "Folder", "No audit XML files found in the folder.\n"
+                "(.xml, .xml-1, .xml.0 ...)")
+            return 0
+        if confirm and len(files) > 20 and not messagebox.askyesno(
+                "Open all files",
+                f"The folder has {len(files)} audit files.\n"
+                "Open every one in its own tab?"):
+            return 0
+        for _, fp in files:
+            self._open_path(fp)
+        self.status_var.set(f"Opened {len(files)} files from {d}")
+        return len(files)
+
+    def _load_folder(self, d: str, tab: "FileTab | None" = None):
+        files = self._list_audit_files(d)
+        if files is None:
+            return
         if not files:
             messagebox.showinfo(
                 "Folder", "No audit XML files found in the folder.\n"
                 "(.xml, .xml-1, .xml.0 ...)")
             return
 
-        files.sort(key=lambda x: x[0])          # oldest -> newest
         latest = files[-1][1]
         title = f"{os.path.basename(os.path.normpath(d)) or d} ({len(files)} files)"
 
@@ -1735,7 +1771,10 @@ def main(argv: list[str] | None = None):
         # open after the Tk event loop has started
         def _open_startup_files():
             for pth in args.paths:
-                app._open_path(pth, tail=args.tail)
+                if os.path.isdir(pth):
+                    app._open_all_in_dir(pth, confirm=False)
+                else:
+                    app._open_path(pth, tail=args.tail)
         app.after(200, _open_startup_files)
 
     app.mainloop()

@@ -81,3 +81,17 @@ def test_tail_in_a_tab_and_close(app, tmp_path):
     assert len(tab.events) == n0 + 2
     app._close_tab(tab)
     assert not app.tabs and not tab.tailing
+
+
+def test_open_all_files_in_folder(app, tmp_path):
+    for i, src in enumerate((F1, F2, F1)):
+        shutil.copy(src, tmp_path / f"audit{i}.xml")
+    (tmp_path / "notes.txt").write_text("not an audit file")
+    assert app._open_all_in_dir(str(tmp_path), confirm=False) == 3
+    pump(app, 1.5)
+    assert len(app.tabs) == 3
+    assert sorted(len(t.events) for t in app.tabs.values()) == [334, 548, 548]
+    # the shared filters reach every one of those tabs
+    app.filter_result.set("Audit Failure")
+    app._apply_filters()
+    assert sorted(len(t.filtered_indices) for t in app.tabs.values()) == [0, 68, 68]

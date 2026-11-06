@@ -577,6 +577,8 @@ class AuditViewer(tk.Tk):
                    command=self._open_directory).pack(side="left", padx=(6, 0))
         ttk.Button(top, text="Close Tab", command=self._close_tab).pack(
             side="left", padx=(6, 0))
+        ttk.Button(top, text="Close All", command=self._close_all_tabs).pack(
+            side="left", padx=(6, 0))
 
         # ---- Top bar, row 2: vendor, reload, statistics, export ----
         top2 = ttk.Frame(self, padding=(10, 4, 10, 4))
@@ -677,8 +679,12 @@ class AuditViewer(tk.Tk):
         self.notebook = ttk.Notebook(paned)
         paned.add(self.notebook, weight=3)
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-        # middle-click a tab header to close it
+        # middle-click a tab header to close it; right-click for a menu
         self.notebook.bind("<Button-2>", self._on_tab_middle_click)
+        self.notebook.bind("<Button-3>", self._on_tab_right_click)
+        self.bind_all("<Control-w>", lambda _e: self._close_tab())
+        self.bind_all("<Control-W>", lambda _e: self._close_all_tabs())
+        self._tab_menu = tk.Menu(self, tearoff=0)
 
         # Right-click context menu (shared)
         self._ctx_menu = tk.Menu(self, tearoff=0)
@@ -767,17 +773,48 @@ class AuditViewer(tk.Tk):
         self._set_detail("")
         self._on_tab_changed()
 
-    def _on_tab_middle_click(self, event):
+    def _tab_at(self, event) -> "FileTab | None":
+        """The tab whose header is under the mouse pointer, if any."""
         try:
             idx = self.notebook.index(f"@{event.x},{event.y}")
         except tk.TclError:
-            return
+            return None
         frames = self.notebook.tabs()
         if 0 <= idx < len(frames):
             for t in self.tabs.values():
                 if str(t.frame) == str(frames[idx]):
-                    self._close_tab(t)
-                    break
+                    return t
+        return None
+
+    def _on_tab_middle_click(self, event):
+        tab = self._tab_at(event)
+        if tab:
+            self._close_tab(tab)
+
+    def _on_tab_right_click(self, event):
+        tab = self._tab_at(event)
+        if tab is None:
+            return
+        self.notebook.select(tab.frame)
+        m = self._tab_menu
+        m.delete(0, "end")
+        m.add_command(label="Close this tab",
+                      command=lambda t=tab: self._close_tab(t))
+        m.add_command(label="Close other tabs",
+                      state="normal" if len(self.tabs) > 1 else "disabled",
+                      command=lambda t=tab: self._close_all_tabs(keep=t))
+        m.add_command(label="Close all tabs",
+                      command=self._close_all_tabs)
+        try:
+            m.tk_popup(event.x_root, event.y_root)
+        finally:
+            m.grab_release()
+
+    def _close_all_tabs(self, keep: "FileTab | None" = None):
+        """Close every tab (or every tab except `keep`)."""
+        for t in list(self.tabs.values()):
+            if t is not keep:
+                self._close_tab(t)
 
     def _on_tab_changed(self, _event=None):
         tab = self.cur
@@ -1364,6 +1401,7 @@ class AuditViewer(tk.Tk):
                       command=self._reset_filters)
         m.add_command(label="Close this tab",
                       command=lambda t=tab: self._close_tab(t))
+        m.add_command(label="Close all tabs", command=self._close_all_tabs)
 
         try:
             m.tk_popup(event.x_root, event.y_root)

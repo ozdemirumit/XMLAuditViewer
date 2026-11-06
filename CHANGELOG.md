@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Multiple files in tabs:** every opened file gets its own tab; *Browse...* accepts several files, the command line accepts several paths, and a file that is already open is reused. The filters apply to **all** tabs at once (tab titles show `filtered/total` and a dot while tailing).
 - **Open All in Folder...** button (and a folder as a command-line path): every audit XML file of a folder opens in its own tab.
-- *Close Tab* button, middle-click on a tab and right-click -> *Close this tab*.
+- Closing tabs one by one (*Close Tab*, `Ctrl+W`, middle-click on a tab, right-click -> *Close this tab*) or in bulk (*Close All*, `Ctrl+Shift+W`, tab right-click menu: *Close other tabs* / *Close all tabs*).
 - *Statistics / CSV for all tabs* option for *Statistics...* and *Export CSV...*; CSV has a new `SourceFile` column.
 - Tail is controlled per tab; *Folder (rotated)...* opens its own tab.
 - GUI smoke tests (`test_gui.py`, skipped when there is no display).

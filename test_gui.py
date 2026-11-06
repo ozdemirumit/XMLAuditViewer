@@ -95,3 +95,18 @@ def test_open_all_files_in_folder(app, tmp_path):
     app.filter_result.set("Audit Failure")
     app._apply_filters()
     assert sorted(len(t.filtered_indices) for t in app.tabs.values()) == [0, 68, 68]
+
+
+def test_close_one_others_and_all(app):
+    tabs = [app._open_path(F1), app._open_path(F2)]
+    pump(app, 1.0)
+    extra = app._add_tab("/nonexistent/third.xml")
+    extra2 = app._add_tab("/nonexistent/fourth.xml")
+    assert len(app.tabs) == 4
+    app._close_tab(extra)                      # one
+    assert len(app.tabs) == 3
+    app._close_all_tabs(keep=tabs[0])          # all others
+    assert list(app.tabs.values()) == [tabs[0]]
+    app._close_all_tabs()                      # everything
+    assert not app.tabs and app.cur is None
+    assert app.status_var.get().startswith("Ready")

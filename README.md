@@ -187,7 +187,10 @@ xml-audit-viewer huawei_audit.xml --vendor huawei --tail
 | **Start Tail / Stop Tail** | Follow the **active tab's** file for new events. If the file was opened with *Open File*, continues from where it ended; otherwise reads the file from the start and then follows it. Each tab tails independently. |
 | **Open All in Folder…** | Pick a folder; **every** audit XML file in it opens in its own tab (oldest first). Asks first if there are more than 20. |
 | **Folder (rotated)…** | Pick a folder; loads every `*.xml`, `*.xml-N`, `*.xml.N` file oldest → newest merged into **one tab** (one rotated log), then tails the newest. |
-| **Close Tab** | Close the active tab and stop its tail (also: middle-click a tab, or right-click a row → *Close this tab*). |
+| **Close Tab** | Close the active tab and stop its tail. Also: middle-click a tab header, `Ctrl+W`, or right-click a row → *Close this tab*. |
+| **Close All** | Close every tab (stops all tails). Also: `Ctrl+Shift+W`. |
+
+Right-click a **tab header** for *Close this tab*, *Close other tabs* and *Close all tabs*.
 | **Vendor** | `Auto` (default) uses the vendor detected from each event and shows it in the status bar; `NetApp` / `Huawei` force the label. Parsing is identical for both — this only sets the label shown in the status bar, detail pane, CSV and search. |
 | **Reload** | Re-read the active tab's file from scratch; tailing stays on if it was on. |
 | **Statistics…** | Statistics for the filtered events of the active tab. |
